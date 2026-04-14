@@ -1,0 +1,147 @@
+openapi: 3.0.3
+info:
+  title: Freelance Fix API
+  description: Middle Tier API powering the localized gig-based platform. Integrates with the Supabase DataStore.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api
+    description: Next.js Middle Tier Server Locally
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Gig:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        base_price:
+          type: number
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+        total_amount:
+          type: number
+
+security:
+  - bearerAuth: []
+
+paths:
+  /users/profile:
+    get:
+      summary: Get the current user's structured profile
+      responses:
+        '200':
+          description: Returns User, Client, or Freelancer profile
+    put:
+      summary: Update profile details (Bio, Portfolio, etc.)
+      responses:
+        '200':
+          description: successfully updated
+          
+  /gigs:
+    get:
+      summary: Browse all active gigs
+      parameters:
+        - in: query
+          name: category_id
+          schema:
+            type: integer
+          description: Filter by category
+      responses:
+        '200':
+          description: A list of gigs
+    post:
+      summary: Create a new Gig (Freelancers only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Gig'
+      responses:
+        '201':
+          description: Created
+          
+  /gigs/{gigId}:
+    get:
+      summary: View a gig details + its packages
+      parameters:
+        - name: gigId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Gig object with 3 tier packages
+          
+  /orders:
+    get:
+      summary: Get user orders (as client or freelancer)
+      responses:
+        '200':
+          description: A list of orders
+    post:
+      summary: Purchase a gig package
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                gig_package_id:
+                  type: integer
+      responses:
+        '201':
+          description: Order created pending escrow
+          
+  /orders/{orderId}/status:
+    patch:
+      summary: Update order status (InProgress, Completed)
+      responses:
+        '200':
+          description: Status updated
+
+  /briefs:
+    get:
+      summary: List all open custom project briefs
+      responses:
+        '200':
+          description: Array of available briefs
+    post:
+      summary: Post a custom project brief requirement (Clients only)
+      responses:
+        '201':
+          description: Brief posted
+          
+  /briefs/{briefId}/offers:
+    post:
+      summary: Submit a bid on a brief (Freelancers only)
+      responses:
+        '201':
+          description: Offer sent
+          
+  /messages:
+    get:
+      summary: Get inbox threads
+      responses:
+        '200':
+          description: Returns messages
+    post:
+      summary: Send a message to another user
+      responses:
+        '201':
+          description: Message dispatched
