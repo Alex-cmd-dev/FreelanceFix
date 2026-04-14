@@ -2,6 +2,10 @@
 
 Welcome to **Freelance Fix**, a localized service marketplace divided into a rigorous 3-Tier Architecture cleanly separated by folders.
 
+## Project Description
+
+The "Freelance Fix" project addresses the lack of a localized, accessible platform for freelancers and small businesses in the Rio Grande Valley. While global platforms exist, they often overlook the specific needs and community trust of local markets. Freelance Fix provides a structured marketplace where local professionals, such as graphic designers and bakery owners, can connect through a "Gig-based" model. The system allows freelancers to list services and clients to browse, purchase, and review those services in a secure environment.
+
 ## Folder Overview
 
 ### 1. `/frontend` (Interface Module)
