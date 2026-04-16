@@ -13,42 +13,139 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        first_name: { type: string }
+        last_name: { type: string }
+        created_at: { type: string, format: date-time }
+    Freelancer:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        bio: { type: string }
+        portfolio_url: { type: string }
+        hourly_rate: { type: number }
+        created_at: { type: string, format: date-time }
+    Client:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        company_name: { type: string }
+        spending_history: { type: number }
+        created_at: { type: string, format: date-time }
+    Category:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: string }
+    Subcategory:
+      type: object
+      properties:
+        id: { type: integer }
+        category_id: { type: integer }
+        name: { type: string }
+        description: { type: string }
     Gig:
       type: object
       properties:
-        id:
-          type: integer
-        title:
-          type: string
-        description:
-          type: string
-        base_price:
-          type: number
+        id: { type: integer }
+        freelancer_id: { type: string, format: uuid }
+        subcategory_id: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        base_price: { type: number }
+    GigPackage:
+      type: object
+      properties:
+        id: { type: integer }
+        gig_id: { type: integer }
+        tier: { type: string, enum: [Basic, Standard, Premium] }
+        price: { type: number }
+        description: { type: string }
+        delivery_days: { type: integer }
     Order:
       type: object
       properties:
-        id:
-          type: integer
-        status:
-          type: string
-        total_amount:
-          type: number
+        id: { type: integer }
+        client_id: { type: string, format: uuid }
+        gig_package_id: { type: integer }
+        status: { type: string, enum: [Pending, In_Progress, Completed, Cancelled] }
+        total_amount: { type: number }
+        due_date: { type: string, format: date-time }
+    Payment:
+      type: object
+      properties:
+        id: { type: integer }
+        order_id: { type: integer }
+        amount: { type: number }
+        status: { type: string, enum: [Pending, Escrow, Released, Refunded] }
+        payment_method: { type: string }
+    Review:
+      type: object
+      properties:
+        id: { type: integer }
+        order_id: { type: integer }
+        rating: { type: integer }
+        comment: { type: string }
+    Message:
+      type: object
+      properties:
+        id: { type: integer }
+        sender_id: { type: string, format: uuid }
+        receiver_id: { type: string, format: uuid }
+        content: { type: string }
+        is_read: { type: boolean }
+    Brief:
+      type: object
+      properties:
+        id: { type: integer }
+        client_id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        budget_min: { type: number }
+        budget_max: { type: number }
+        status: { type: string }
+    BriefOffer:
+      type: object
+      properties:
+        id: { type: integer }
+        project_brief_id: { type: integer }
+        freelancer_id: { type: string, format: uuid }
+        offer_amount: { type: number }
+        description: { type: string }
+        status: { type: string, enum: [Pending, Accepted, Rejected] }
 
 security:
   - bearerAuth: []
 
 paths:
+  /categories:
+    get:
+      summary: Get all categories and subcategories
+      responses:
+        '200':
+          description: A list of categories with their subcategories
+          
   /users/profile:
     get:
       summary: Get the current user's structured profile
       responses:
         '200':
-          description: Returns User, Client, or Freelancer profile
+          description: Returns User with their Client or Freelancer profile
     put:
-      summary: Update profile details (Bio, Portfolio, etc.)
+      summary: Update profile details (Bio, Portfolio, Company Name, etc.)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
         '200':
-          description: successfully updated
+          description: Successfully updated
           
   /gigs:
     get:
@@ -59,6 +156,11 @@ paths:
           schema:
             type: integer
           description: Filter by category
+        - in: query
+          name: subcategory_id
+          schema:
+            type: integer
+          description: Filter by subcategory
       responses:
         '200':
           description: A list of gigs
@@ -69,10 +171,16 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Gig'
+              type: object
+              required: [title, description, base_price, subcategory_id]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                base_price: { type: number }
+                subcategory_id: { type: integer }
       responses:
         '201':
-          description: Created
+          description: Gig created
           
   /gigs/{gigId}:
     get:
@@ -87,6 +195,25 @@ paths:
         '200':
           description: Gig object with 3 tier packages
           
+  /gigs/{gigId}/packages:
+    post:
+      summary: Create or update packages for a gig
+      parameters:
+        - name: gigId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GigPackage'
+      responses:
+        '201':
+          description: Package defined
+
   /orders:
     get:
       summary: Get user orders (as client or freelancer)
@@ -101,6 +228,7 @@ paths:
           application/json:
             schema:
               type: object
+              required: [gig_package_id]
               properties:
                 gig_package_id:
                   type: integer
@@ -110,10 +238,47 @@ paths:
           
   /orders/{orderId}/status:
     patch:
-      summary: Update order status (InProgress, Completed)
+      summary: Update order status (In_Progress, Completed)
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [Pending, In_Progress, Completed, Cancelled] }
       responses:
         '200':
           description: Status updated
+
+  /orders/{orderId}/reviews:
+    post:
+      summary: Post a review for a completed order
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rating, comment]
+              properties:
+                rating: { type: integer }
+                comment: { type: string }
+      responses:
+        '201':
+          description: Review created
 
   /briefs:
     get:
@@ -123,16 +288,82 @@ paths:
           description: Array of available briefs
     post:
       summary: Post a custom project brief requirement (Clients only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                budget_min: { type: number }
+                budget_max: { type: number }
       responses:
         '201':
           description: Brief posted
           
   /briefs/{briefId}/offers:
+    get:
+      summary: View offers for a brief (Clients only)
+      parameters:
+        - name: briefId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of brief offers
     post:
       summary: Submit a bid on a brief (Freelancers only)
+      parameters:
+        - name: briefId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [offer_amount, description]
+              properties:
+                offer_amount: { type: number }
+                description: { type: string }
       responses:
         '201':
           description: Offer sent
+          
+  /briefs/{briefId}/offers/{offerId}/status:
+    patch:
+      summary: Update offer status (Client accepts/rejects offer)
+      parameters:
+        - name: briefId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [Accepted, Rejected] }
+      responses:
+        '200':
+          description: Offer status updated
           
   /messages:
     get:
@@ -142,6 +373,16 @@ paths:
           description: Returns messages
     post:
       summary: Send a message to another user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [receiver_id, content]
+              properties:
+                receiver_id: { type: string, format: uuid }
+                content: { type: string }
       responses:
         '201':
           description: Message dispatched
