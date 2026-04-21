@@ -1,0 +1,20 @@
+-- Drop Supabase auth.users FK and make users a standalone table
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_id_fkey;
+ALTER TABLE public.users ALTER COLUMN id SET DEFAULT gen_random_uuid();
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.users ALTER COLUMN password_hash DROP DEFAULT;
+
+-- Remove Supabase RLS (no longer needed without Supabase Auth)
+ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.freelancers DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.clients DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.categories DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subcategories DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.gigs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.gig_packages DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reviews DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.project_briefs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.brief_offers DISABLE ROW LEVEL SECURITY;
