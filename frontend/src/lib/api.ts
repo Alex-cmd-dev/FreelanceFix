@@ -39,6 +39,11 @@ export const getProfile = () =>
 export const updateProfile = (data: Partial<Freelancer | Client>) => 
   fetchAPI<{ message: string }>('/users/profile', { method: 'PUT', body: JSON.stringify(data) });
 
+export const searchFreelancers = (params?: { query?: string; max_hourly_rate?: number }) => {
+  const queryParam = params ? `?${new URLSearchParams(params as any).toString()}` : '';
+  return fetchAPI<Freelancer[]>(`/freelancers${queryParam}`);
+};
+
 // ---------------------------------------------------------
 // Categories
 // ---------------------------------------------------------

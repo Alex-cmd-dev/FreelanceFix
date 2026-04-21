@@ -4,8 +4,8 @@ info:
   description: Middle Tier API powering the localized gig-based platform. Integrates with the Supabase DataStore.
   version: 1.0.0
 servers:
-  - url: http://localhost:3000/api
-    description: Next.js Middle Tier Server Locally
+  - url: http://localhost:3001/api
+    description: Express Backend Server Locally
 components:
   securitySchemes:
     bearerAuth:
@@ -89,7 +89,7 @@ components:
       properties:
         id: { type: integer }
         order_id: { type: integer }
-        rating: { type: integer }
+        rating: { type: integer, minimum: 1, maximum: 5 }
         comment: { type: string }
     Message:
       type: object
@@ -146,6 +146,30 @@ paths:
       responses:
         '200':
           description: Successfully updated
+          
+  /freelancers:
+    get:
+      summary: Search for freelancers matching query parameters
+      parameters:
+        - in: query
+          name: query
+          schema:
+            type: string
+          description: Text search matching freelancer names or bios
+        - in: query
+          name: max_hourly_rate
+          schema:
+            type: number
+          description: Filter freelancers under a specific hourly rate
+      responses:
+        '200':
+          description: An array of matched freelancer profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Freelancer'
           
   /gigs:
     get:
@@ -209,7 +233,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GigPackage'
+              type: object
+              required: [tier, price, description, delivery_days]
+              properties:
+                tier: { type: string, enum: [Basic, Standard, Premium] }
+                price: { type: number }
+                description: { type: string }
+                delivery_days: { type: integer }
       responses:
         '201':
           description: Package defined
