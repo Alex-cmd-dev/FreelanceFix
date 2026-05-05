@@ -123,6 +123,12 @@ async function updateOfferStatus(req, res) {
       return res.status(403).json({ error: 'Only the brief owner can update offers' });
     }
 
+    const existingOffer = await prisma.briefOffer.findUnique({ where: { id: offerId } });
+    if (!existingOffer) return res.status(404).json({ error: 'Offer not found' });
+    if (existingOffer.project_brief_id !== briefId) {
+      return res.status(404).json({ error: 'Offer not found on this brief' });
+    }
+
     const offer = await prisma.briefOffer.update({
       where: { id: offerId },
       data: { status },

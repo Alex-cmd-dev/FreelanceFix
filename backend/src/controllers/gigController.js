@@ -80,6 +80,7 @@ async function createGig(req, res) {
         description,
         base_price: parseFloat(base_price),
       },
+      include: { packages: true },
     });
 
     res.status(201).json(gig);

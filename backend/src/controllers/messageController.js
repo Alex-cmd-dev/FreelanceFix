@@ -41,6 +41,10 @@ async function sendMessage(req, res) {
         content,
         is_read: false,
       },
+      include: {
+        sender: { select: { id: true, first_name: true, last_name: true } },
+        receiver: { select: { id: true, first_name: true, last_name: true } },
+      },
     });
 
     res.status(201).json(message);

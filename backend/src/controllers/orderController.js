@@ -48,7 +48,7 @@ async function createOrder(req, res) {
     dueDate.setDate(dueDate.getDate() + pkg.delivery_days);
 
     // Create the order plus the linked payment in a transaction.
-    const order = await prisma.$transaction(async (tx) => {
+    const createdOrder = await prisma.$transaction(async (tx) => {
       const newOrder = await tx.order.create({
         data: {
           client_id: req.user.id,
@@ -69,6 +69,15 @@ async function createOrder(req, res) {
       });
 
       return newOrder;
+    });
+
+    const order = await prisma.order.findUnique({
+      where: { id: createdOrder.id },
+      include: {
+        gig_package: { include: { gig: true } },
+        payment: true,
+        review: true,
+      },
     });
 
     res.status(201).json(order);
@@ -100,7 +109,7 @@ async function updateOrderStatus(req, res) {
       return res.status(403).json({ error: 'You are not part of this order' });
     }
 
-    const updated = await prisma.order.update({
+    await prisma.order.update({
       where: { id: orderId },
       data: { status },
     });
@@ -112,6 +121,15 @@ async function updateOrderStatus(req, res) {
         data: { status: 'Released', processed_at: new Date() },
       });
     }
+
+    const updated = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        gig_package: { include: { gig: true } },
+        payment: true,
+        review: true,
+      },
+    });
 
     res.json(updated);
   } catch (err) {
@@ -125,8 +143,9 @@ async function postReview(req, res) {
   try {
     const orderId = parseInt(req.params.orderId);
     const { rating, comment } = req.body;
-    if (!rating || rating < 1 || rating > 5) {
-      return res.status(400).json({ error: 'rating must be 1-5' });
+    const parsedRating = parseInt(rating);
+    if (isNaN(parsedRating) || parsedRating < 1 || parsedRating > 5) {
+      return res.status(400).json({ error: 'rating must be an integer between 1 and 5' });
     }
 
     const order = await prisma.order.findUnique({ where: { id: orderId } });
@@ -139,7 +158,7 @@ async function postReview(req, res) {
     }
 
     const review = await prisma.review.create({
-      data: { order_id: orderId, rating: parseInt(rating), comment: comment || null },
+      data: { order_id: orderId, rating: parsedRating, comment: comment || null },
     });
 
     res.status(201).json(review);
