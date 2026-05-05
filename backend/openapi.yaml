@@ -1,195 +1,449 @@
 openapi: 3.0.3
 info:
   title: Freelance Fix API
-  description: Middle Tier API powering the localized gig-based platform. Integrates with the Supabase DataStore.
-  version: 1.0.0
+  description: >
+    Middle Tier API powering the localized gig-based platform.
+    Integrates with a PostgreSQL database via Prisma.
+  version: 2.0.0
 servers:
   - url: http://localhost:3001/api
-    description: Express Backend Server Locally
+    description: Local Express Backend
+
+# ---------------------------------------------------------------------------
+# Security
+# ---------------------------------------------------------------------------
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
+  # -------------------------------------------------------------------------
+  # Reusable Schemas (derived from prisma/schema.prisma)
+  # -------------------------------------------------------------------------
   schemas:
+
+    # --- Auth ---------------------------------------------------------------
+    AuthRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:    { type: string, format: email, example: alex@example.com }
+        password: { type: string, minLength: 6, example: "secret123" }
+
+    AuthResponse:
+      type: object
+      properties:
+        id:    { type: string, format: uuid }
+        email: { type: string, format: email }
+        name:  { type: string, example: "Alex Gallardo" }
+        token: { type: string, description: JWT bearer token }
+
+    # --- Core models --------------------------------------------------------
     User:
       type: object
       properties:
-        id: { type: string, format: uuid }
-        email: { type: string, format: email }
-        first_name: { type: string }
-        last_name: { type: string }
+        id:         { type: string, format: uuid }
+        email:      { type: string, format: email }
+        first_name: { type: string, nullable: true }
+        last_name:  { type: string, nullable: true }
         created_at: { type: string, format: date-time }
+        freelancer: { $ref: '#/components/schemas/Freelancer', nullable: true }
+        client:     { $ref: '#/components/schemas/Client',     nullable: true }
+
     Freelancer:
       type: object
       properties:
-        id: { type: string, format: uuid }
-        bio: { type: string }
-        portfolio_url: { type: string }
-        hourly_rate: { type: number }
-        created_at: { type: string, format: date-time }
+        id:            { type: string, format: uuid }
+        bio:           { type: string, nullable: true }
+        portfolio_url: { type: string, nullable: true }
+        hourly_rate:   { type: number, nullable: true, example: 75.00 }
+        created_at:    { type: string, format: date-time }
+        user:
+          type: object
+          properties:
+            id:         { type: string, format: uuid }
+            first_name: { type: string, nullable: true }
+            last_name:  { type: string, nullable: true }
+            email:      { type: string, format: email }
+
     Client:
       type: object
       properties:
-        id: { type: string, format: uuid }
-        company_name: { type: string }
-        spending_history: { type: number }
-        created_at: { type: string, format: date-time }
+        id:               { type: string, format: uuid }
+        company_name:     { type: string, nullable: true }
+        spending_history: { type: number, example: 0.00 }
+        created_at:       { type: string, format: date-time }
+
     Category:
       type: object
       properties:
-        id: { type: integer }
-        name: { type: string }
-        description: { type: string }
+        id:           { type: integer }
+        name:         { type: string }
+        description:  { type: string, nullable: true }
+        created_at:   { type: string, format: date-time }
+        subcategories:
+          type: array
+          items: { $ref: '#/components/schemas/Subcategory' }
+
     Subcategory:
       type: object
       properties:
-        id: { type: integer }
+        id:          { type: integer }
         category_id: { type: integer }
-        name: { type: string }
-        description: { type: string }
+        name:        { type: string }
+        description: { type: string, nullable: true }
+        created_at:  { type: string, format: date-time }
+
     Gig:
       type: object
       properties:
-        id: { type: integer }
-        freelancer_id: { type: string, format: uuid }
+        id:             { type: integer }
+        freelancer_id:  { type: string, format: uuid }
         subcategory_id: { type: integer }
-        title: { type: string }
-        description: { type: string }
-        base_price: { type: number }
+        title:          { type: string }
+        description:    { type: string }
+        base_price:     { type: number, example: 50.00 }
+        created_at:     { type: string, format: date-time }
+        packages:
+          type: array
+          items: { $ref: '#/components/schemas/GigPackage' }
+
     GigPackage:
       type: object
       properties:
-        id: { type: integer }
-        gig_id: { type: integer }
-        tier: { type: string, enum: [Basic, Standard, Premium] }
-        price: { type: number }
-        description: { type: string }
-        delivery_days: { type: integer }
+        id:            { type: integer }
+        gig_id:        { type: integer }
+        tier:          { type: string, enum: [Basic, Standard, Premium] }
+        price:         { type: number, example: 99.00 }
+        description:   { type: string }
+        delivery_days: { type: integer, example: 5 }
+        created_at:    { type: string, format: date-time }
+
     Order:
       type: object
       properties:
-        id: { type: integer }
-        client_id: { type: string, format: uuid }
+        id:             { type: integer }
+        client_id:      { type: string, format: uuid }
         gig_package_id: { type: integer }
-        status: { type: string, enum: [Pending, In_Progress, Completed, Cancelled] }
-        total_amount: { type: number }
-        due_date: { type: string, format: date-time }
+        status:         { type: string, enum: [Pending, In_Progress, Completed, Cancelled] }
+        total_amount:   { type: number }
+        due_date:       { type: string, format: date-time, nullable: true }
+        created_at:     { type: string, format: date-time }
+        gig_package:    { $ref: '#/components/schemas/GigPackage', nullable: true }
+        payment:        { $ref: '#/components/schemas/Payment',    nullable: true }
+        review:         { $ref: '#/components/schemas/Review',     nullable: true }
+
     Payment:
       type: object
       properties:
-        id: { type: integer }
-        order_id: { type: integer }
-        amount: { type: number }
-        status: { type: string, enum: [Pending, Escrow, Released, Refunded] }
-        payment_method: { type: string }
+        id:             { type: integer }
+        order_id:       { type: integer }
+        amount:         { type: number }
+        status:         { type: string, enum: [Pending, Escrow, Released, Refunded] }
+        payment_method: { type: string, nullable: true }
+        processed_at:   { type: string, format: date-time, nullable: true }
+        created_at:     { type: string, format: date-time }
+
     Review:
       type: object
       properties:
-        id: { type: integer }
-        order_id: { type: integer }
-        rating: { type: integer, minimum: 1, maximum: 5 }
-        comment: { type: string }
+        id:         { type: integer }
+        order_id:   { type: integer }
+        rating:     { type: integer, minimum: 1, maximum: 5 }
+        comment:    { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
     Message:
       type: object
       properties:
-        id: { type: integer }
-        sender_id: { type: string, format: uuid }
+        id:          { type: integer }
+        sender_id:   { type: string, format: uuid }
         receiver_id: { type: string, format: uuid }
-        content: { type: string }
-        is_read: { type: boolean }
+        content:     { type: string }
+        is_read:     { type: boolean }
+        created_at:  { type: string, format: date-time }
+        sender:
+          type: object
+          properties:
+            id:         { type: string, format: uuid }
+            first_name: { type: string, nullable: true }
+            last_name:  { type: string, nullable: true }
+        receiver:
+          type: object
+          properties:
+            id:         { type: string, format: uuid }
+            first_name: { type: string, nullable: true }
+            last_name:  { type: string, nullable: true }
+
     Brief:
       type: object
       properties:
-        id: { type: integer }
-        client_id: { type: string, format: uuid }
-        title: { type: string }
+        id:          { type: integer }
+        client_id:   { type: string, format: uuid }
+        title:       { type: string }
         description: { type: string }
-        budget_min: { type: number }
-        budget_max: { type: number }
-        status: { type: string }
+        budget_min:  { type: number, nullable: true }
+        budget_max:  { type: number, nullable: true }
+        status:      { type: string, enum: [Open, Closed] }
+        created_at:  { type: string, format: date-time }
+        offers:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+
     BriefOffer:
       type: object
       properties:
-        id: { type: integer }
+        id:               { type: integer }
         project_brief_id: { type: integer }
-        freelancer_id: { type: string, format: uuid }
-        offer_amount: { type: number }
-        description: { type: string }
-        status: { type: string, enum: [Pending, Accepted, Rejected] }
+        freelancer_id:    { type: string, format: uuid }
+        offer_amount:     { type: number }
+        description:      { type: string }
+        status:           { type: string, enum: [Pending, Accepted, Rejected] }
+        created_at:       { type: string, format: date-time }
+        freelancer:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string, format: uuid }
+            user:
+              type: object
+              properties:
+                first_name: { type: string, nullable: true }
+                last_name:  { type: string, nullable: true }
 
-security:
-  - bearerAuth: []
+    # --- Shared error response ----------------------------------------------
+    Error:
+      type: object
+      properties:
+        error: { type: string, example: "Something went wrong" }
 
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
 paths:
-  /categories:
-    get:
-      summary: Get all categories and subcategories
-      responses:
-        '200':
-          description: A list of categories with their subcategories
-          
-  /users/profile:
-    get:
-      summary: Get the current user's structured profile
-      responses:
-        '200':
-          description: Returns User with their Client or Freelancer profile
-    put:
-      summary: Update profile details (Bio, Portfolio, Company Name, etc.)
+
+  # --- Auth (public) --------------------------------------------------------
+  /auth/register:
+    post:
+      operationId: registerUser
+      tags: [Auth]
+      summary: Register a new user account
+      security: []
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
+              allOf:
+                - $ref: '#/components/schemas/AuthRequest'
+                - type: object
+                  properties:
+                    first_name: { type: string }
+                    last_name:  { type: string }
+      responses:
+        '201':
+          description: User created — returns id, email, and JWT token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:    { type: string, format: uuid }
+                  email: { type: string, format: email }
+                  token: { type: string }
+        '400':
+          description: Missing email or password
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: Email already in use
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/login:
+    post:
+      operationId: loginUser
+      tags: [Auth]
+      summary: Login and receive a JWT token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthRequest' }
       responses:
         '200':
-          description: Successfully updated
-          
-  /freelancers:
+          description: Authenticated — returns user info and JWT token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # --- Categories (public) --------------------------------------------------
+  /categories:
     get:
-      summary: Search for freelancers matching query parameters
-      parameters:
-        - in: query
-          name: query
-          schema:
-            type: string
-          description: Text search matching freelancer names or bios
-        - in: query
-          name: max_hourly_rate
-          schema:
-            type: number
-          description: Filter freelancers under a specific hourly rate
+      operationId: getCategories
+      tags: [Categories]
+      summary: Get all categories with their subcategories
+      security: []
       responses:
         '200':
-          description: An array of matched freelancer profiles
+          description: Array of categories each with nested subcategories
           content:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: '#/components/schemas/Freelancer'
-          
+                items: { $ref: '#/components/schemas/Category' }
+        '4XX':
+          description: Client error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '5XX':
+          description: Server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # --- Users ----------------------------------------------------------------
+  /users/profile:
+    get:
+      operationId: getProfile
+      tags: [Users]
+      summary: Get the authenticated user's profile (includes freelancer/client sub-profile)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User object with nested freelancer and/or client profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+    put:
+      operationId: updateProfile
+      tags: [Users]
+      summary: Update profile — creates or upserts freelancer/client sub-profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                first_name:    { type: string }
+                last_name:     { type: string }
+                role:          { type: string, enum: [freelancer, client], description: "Explicitly set the role to create" }
+                bio:           { type: string, description: "Freelancer only" }
+                portfolio_url: { type: string, description: "Freelancer only" }
+                hourly_rate:   { type: number, description: "Freelancer only" }
+                company_name:  { type: string, description: "Client only" }
+      responses:
+        '200':
+          description: Updated user object with nested profiles
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # --- Freelancers (public search) ------------------------------------------
+  /freelancers:
+    get:
+      operationId: searchFreelancers
+      tags: [Freelancers]
+      summary: Search freelancer profiles
+      security: []
+      parameters:
+        - in: query
+          name: query
+          schema: { type: string }
+          description: Text search against first_name, last_name, and bio
+        - in: query
+          name: max_hourly_rate
+          schema: { type: number }
+          description: Return only freelancers at or below this hourly rate
+      responses:
+        '200':
+          description: Array of freelancer profiles (max 50)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Freelancer' }
+        '4XX':
+          description: Client error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '5XX':
+          description: Server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # --- Gigs -----------------------------------------------------------------
   /gigs:
     get:
-      summary: Browse all active gigs
+      operationId: browseGigs
+      tags: [Gigs]
+      summary: Browse all gigs (optionally filter by category/subcategory)
+      security: []
       parameters:
         - in: query
           name: category_id
-          schema:
-            type: integer
-          description: Filter by category
+          schema: { type: integer }
+          description: Filter gigs by category (matches via subcategory)
         - in: query
           name: subcategory_id
-          schema:
-            type: integer
-          description: Filter by subcategory
+          schema: { type: integer }
+          description: Filter gigs by subcategory
       responses:
         '200':
-          description: A list of gigs
+          description: Array of gigs with their packages
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Gig' }
+        '4XX':
+          description: Client error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '5XX':
+          description: Server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
     post:
-      summary: Create a new Gig (Freelancers only)
+      operationId: createGig
+      tags: [Gigs]
+      summary: Create a new gig (Freelancers only)
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -198,36 +452,93 @@ paths:
               type: object
               required: [title, description, base_price, subcategory_id]
               properties:
-                title: { type: string }
-                description: { type: string }
-                base_price: { type: number }
+                title:          { type: string }
+                description:    { type: string }
+                base_price:     { type: number }
                 subcategory_id: { type: integer }
       responses:
         '201':
-          description: Gig created
-          
+          description: Created gig
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Gig' }
+        '400':
+          description: Missing required fields
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: User does not have a freelancer profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /gigs/{gigId}:
+    parameters:
+      - name: gigId
+        in: path
+        required: true
+        schema: { type: integer }
+
     get:
-      summary: View a gig details + its packages
-      parameters:
-        - name: gigId
-          in: path
-          required: true
-          schema:
-            type: integer
+      operationId: getGigById
+      tags: [Gigs]
+      summary: Get a single gig with its packages
+      security: []
       responses:
         '200':
-          description: Gig object with 3 tier packages
-          
+          description: Gig object with packages array
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Gig' }
+        '404':
+          description: Gig not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+    delete:
+      operationId: deleteGig
+      tags: [Gigs]
+      summary: Delete a gig (owner Freelancer only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Gig deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string, example: "Gig deleted" }
+                  id:      { type: integer }
+        '403':
+          description: Caller does not own the gig
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Gig not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /gigs/{gigId}/packages:
+    parameters:
+      - name: gigId
+        in: path
+        required: true
+        schema: { type: integer }
+
     post:
-      summary: Create or update packages for a gig
-      parameters:
-        - name: gigId
-          in: path
-          required: true
-          schema:
-            type: integer
+      operationId: upsertGigPackage
+      tags: [Gigs]
+      summary: >
+        Create or update a package for a gig (upsert by tier).
+        Only one package per tier (Basic/Standard/Premium) is allowed per gig.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -236,22 +547,55 @@ paths:
               type: object
               required: [tier, price, description, delivery_days]
               properties:
-                tier: { type: string, enum: [Basic, Standard, Premium] }
-                price: { type: number }
-                description: { type: string }
+                tier:          { type: string, enum: [Basic, Standard, Premium] }
+                price:         { type: number }
+                description:   { type: string }
                 delivery_days: { type: integer }
       responses:
         '201':
-          description: Package defined
+          description: Package created or updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GigPackage' }
+        '403':
+          description: Caller does not own the gig
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Gig not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
+  # --- Orders ---------------------------------------------------------------
   /orders:
     get:
-      summary: Get user orders (as client or freelancer)
+      operationId: getOrders
+      tags: [Orders]
+      summary: Get all orders for the authenticated user (as client or freelancer)
+      security:
+        - bearerAuth: []
       responses:
         '200':
-          description: A list of orders
+          description: Array of orders with nested gig_package, payment, and review
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Order' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
     post:
-      summary: Purchase a gig package
+      operationId: createOrder
+      tags: [Orders]
+      summary: Purchase a gig package — creates Order and Escrow Payment (Clients only)
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -260,64 +604,145 @@ paths:
               type: object
               required: [gig_package_id]
               properties:
-                gig_package_id:
-                  type: integer
+                gig_package_id: { type: integer }
       responses:
         '201':
-          description: Order created pending escrow
-          
+          description: Order created with linked payment in Escrow status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '400':
+          description: Missing gig_package_id or package not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: User does not have a client profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /orders/{orderId}/status:
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema: { type: integer }
+
     patch:
-      summary: Update order status (In_Progress, Completed)
-      parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema:
-            type: integer
+      operationId: updateOrderStatus
+      tags: [Orders]
+      summary: Update order status — completing an order releases the Escrow payment
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required: [status]
               properties:
                 status: { type: string, enum: [Pending, In_Progress, Completed, Cancelled] }
       responses:
         '200':
-          description: Status updated
+          description: Updated order
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '400':
+          description: Invalid status value
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: Caller is not part of this order
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Order not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /orders/{orderId}/reviews:
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema: { type: integer }
+
     post:
-      summary: Post a review for a completed order
-      parameters:
-        - name: orderId
-          in: path
-          required: true
-          schema:
-            type: integer
+      operationId: postReview
+      tags: [Orders]
+      summary: Post a review for a completed order (Client who placed the order only)
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [rating, comment]
+              required: [rating]
               properties:
-                rating: { type: integer }
+                rating:  { type: integer, minimum: 1, maximum: 5 }
                 comment: { type: string }
       responses:
         '201':
           description: Review created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Review' }
+        '400':
+          description: Invalid rating or order is not Completed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: Caller is not the client of this order
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: This order already has a review
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
+  # --- Briefs ---------------------------------------------------------------
   /briefs:
     get:
-      summary: List all open custom project briefs
+      operationId: listBriefs
+      tags: [Briefs]
+      summary: List all open project briefs (public)
+      security: []
       responses:
         '200':
-          description: Array of available briefs
+          description: Array of open briefs with client name and offer count
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Brief' }
+        '4XX':
+          description: Client error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '5XX':
+          description: Server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
     post:
-      summary: Post a custom project brief requirement (Clients only)
+      operationId: createBrief
+      tags: [Briefs]
+      summary: Post a project brief requirement (Clients only)
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -326,34 +751,60 @@ paths:
               type: object
               required: [title, description]
               properties:
-                title: { type: string }
+                title:       { type: string }
                 description: { type: string }
-                budget_min: { type: number }
-                budget_max: { type: number }
+                budget_min:  { type: number }
+                budget_max:  { type: number }
       responses:
         '201':
-          description: Brief posted
-          
+          description: Brief created with status Open
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Brief' }
+        '403':
+          description: User does not have a client profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /briefs/{briefId}/offers:
+    parameters:
+      - name: briefId
+        in: path
+        required: true
+        schema: { type: integer }
+
     get:
-      summary: View offers for a brief (Clients only)
-      parameters:
-        - name: briefId
-          in: path
-          required: true
-          schema:
-            type: integer
+      operationId: listBriefOffers
+      tags: [Briefs]
+      summary: View all offers on a brief (brief owner / Client only)
+      security:
+        - bearerAuth: []
       responses:
         '200':
-          description: List of brief offers
+          description: Array of offers with freelancer name info
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/BriefOffer' }
+        '403':
+          description: Caller does not own this brief
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Brief not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
     post:
+      operationId: submitBriefOffer
+      tags: [Briefs]
       summary: Submit a bid on a brief (Freelancers only)
-      parameters:
-        - name: briefId
-          in: path
-          required: true
-          schema:
-            type: integer
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -363,25 +814,41 @@ paths:
               required: [offer_amount, description]
               properties:
                 offer_amount: { type: number }
-                description: { type: string }
+                description:  { type: string }
       responses:
         '201':
-          description: Offer sent
-          
+          description: Offer submitted with status Pending
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BriefOffer' }
+        '400':
+          description: Brief is no longer open
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: User does not have a freelancer profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /briefs/{briefId}/offers/{offerId}/status:
+    parameters:
+      - name: briefId
+        in: path
+        required: true
+        schema: { type: integer }
+      - name: offerId
+        in: path
+        required: true
+        schema: { type: integer }
+
     patch:
-      summary: Update offer status (Client accepts/rejects offer)
-      parameters:
-        - name: briefId
-          in: path
-          required: true
-          schema:
-            type: integer
-        - name: offerId
-          in: path
-          required: true
-          schema:
-            type: integer
+      operationId: updateBriefOfferStatus
+      tags: [Briefs]
+      summary: Accept or reject an offer (brief owner / Client only) — accepting closes the brief
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -393,16 +860,49 @@ paths:
                 status: { type: string, enum: [Accepted, Rejected] }
       responses:
         '200':
-          description: Offer status updated
-          
+          description: Updated offer; if Accepted the brief status becomes Closed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BriefOffer' }
+        '403':
+          description: Caller does not own this brief
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Brief or offer not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # --- Messages -------------------------------------------------------------
   /messages:
     get:
-      summary: Get inbox threads
+      operationId: getMessages
+      tags: [Messages]
+      summary: Get all messages where the user is sender or receiver (newest first, max 200)
+      security:
+        - bearerAuth: []
       responses:
         '200':
-          description: Returns messages
+          description: Array of messages with sender and receiver name info
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Message' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
     post:
+      operationId: sendMessage
+      tags: [Messages]
       summary: Send a message to another user
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -412,7 +912,20 @@ paths:
               required: [receiver_id, content]
               properties:
                 receiver_id: { type: string, format: uuid }
-                content: { type: string }
+                content:     { type: string }
       responses:
         '201':
-          description: Message dispatched
+          description: Message sent
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+        '400':
+          description: Missing receiver_id or content
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Receiver user not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
