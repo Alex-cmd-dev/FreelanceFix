@@ -144,6 +144,9 @@ async function deleteGig(req, res) {
     await prisma.gig.delete({ where: { id: gigId } });
     res.json({ message: 'Gig deleted', id: gigId });
   } catch (err) {
+    if (err.code === 'P2003') {
+      return res.status(409).json({ error: 'Cannot delete gig while it has active orders' });
+    }
     console.error('deleteGig error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
