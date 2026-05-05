@@ -1,5 +1,5 @@
-import NextAuth from 'next-auth'
-import CredentialsProvider from 'next-auth/providers/credentials'
+import NextAuth from 'next-auth';
+import CredentialsProvider from 'next-auth/providers/credentials';
 
 const handler = NextAuth({
   providers: [
@@ -10,17 +10,20 @@ const handler = NextAuth({
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        const res = await fetch(`${process.env.API_URL}/api/auth/login`, {
+        const apiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+        const res = await fetch(`${apiUrl}/api/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             email: credentials?.email,
             password: credentials?.password,
           }),
-        })
+        });
 
-        if (!res.ok) return null
-        return res.json()
+        if (!res.ok) return null;
+        const data = await res.json();
+        // data = { id, email, name, token }
+        return data;
       },
     }),
   ],
@@ -28,14 +31,22 @@ const handler = NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
     async jwt({ token, user }) {
-      if (user) token.id = user.id
-      return token
+      if (user) {
+        token.id = user.id;
+        // Store the backend JWT so API calls can use it
+        token.backendToken = (user as any).token;
+      }
+      return token;
     },
     async session({ session, token }) {
-      if (token.id) (session.user as any).id = token.id
-      return session
+      if (token.id) (session.user as any).id = token.id;
+      if (token.backendToken) (session as any).backendToken = token.backendToken;
+      return session;
     },
   },
-})
+  pages: {
+    signIn: '/login',
+  },
+});
 
-export { handler as GET, handler as POST }
+export { handler as GET, handler as POST };

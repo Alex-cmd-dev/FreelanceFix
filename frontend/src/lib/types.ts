@@ -1,5 +1,3 @@
-// Generated automatically from openapi.yaml mappings
-
 export interface User {
   id: string;
   email: string;
@@ -36,15 +34,6 @@ export interface Subcategory {
   description?: string;
 }
 
-export interface Gig {
-  id: number;
-  freelancer_id: string;
-  subcategory_id: number;
-  title: string;
-  description: string;
-  base_price: number;
-}
-
 export interface GigPackage {
   id: number;
   gig_id: number;
@@ -54,6 +43,16 @@ export interface GigPackage {
   delivery_days: number;
 }
 
+export interface Gig {
+  id: number;
+  freelancer_id: string;
+  subcategory_id: number;
+  title: string;
+  description: string;
+  base_price: number;
+  created_at?: string;
+}
+
 export interface Order {
   id: number;
   client_id: string;
@@ -61,6 +60,7 @@ export interface Order {
   status: 'Pending' | 'In_Progress' | 'Completed' | 'Cancelled';
   total_amount: number;
   due_date: string;
+  created_at?: string;
 }
 
 export interface Payment {
@@ -74,7 +74,7 @@ export interface Payment {
 export interface Review {
   id: number;
   order_id: number;
-  rating: number; // 1-5
+  rating: number;
   comment?: string;
 }
 
@@ -84,6 +84,7 @@ export interface Message {
   receiver_id: string;
   content: string;
   is_read: boolean;
+  created_at?: string;
 }
 
 export interface Brief {
@@ -94,6 +95,7 @@ export interface Brief {
   budget_min?: number;
   budget_max?: number;
   status: string;
+  created_at?: string;
 }
 
 export interface BriefOffer {
@@ -103,4 +105,46 @@ export interface BriefOffer {
   offer_amount: number;
   description: string;
   status: 'Pending' | 'Accepted' | 'Rejected';
+  created_at?: string;
+}
+
+// Extended types that include nested relations from the backend
+
+export interface FreelancerWithUser extends Freelancer {
+  user?: { first_name: string; last_name: string; email?: string };
+}
+
+export interface UserWithProfile extends User {
+  freelancer?: Freelancer | null;
+  client?: Client | null;
+}
+
+export interface CategoryWithSubs extends Category {
+  subcategories: Subcategory[];
+}
+
+export interface GigWithRelations extends Gig {
+  freelancer?: FreelancerWithUser;
+  subcategory?: Subcategory & { category?: Category };
+  packages?: GigPackage[];
+}
+
+export interface OrderWithRelations extends Order {
+  gig_package?: GigPackage & { gig?: GigWithRelations };
+  payment?: Payment;
+  review?: Review;
+}
+
+export interface BriefWithOfferCount extends Brief {
+  _count?: { offers: number };
+  client?: { user?: { first_name: string; last_name: string } };
+}
+
+export interface BriefOfferWithFreelancer extends BriefOffer {
+  freelancer?: FreelancerWithUser;
+}
+
+export interface MessageWithUsers extends Message {
+  sender?: { first_name: string; last_name: string };
+  receiver?: { first_name: string; last_name: string };
 }
