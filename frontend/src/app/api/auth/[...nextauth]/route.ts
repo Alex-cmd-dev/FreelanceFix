@@ -22,8 +22,8 @@ const handler = NextAuth({
 
         if (!res.ok) return null;
         const data = await res.json();
-        // data = { id, email, name, token }
-        return data;
+        if (!data?.id || !data?.token) return null;
+        return { id: data.id, email: data.email, name: data.name, token: data.token };
       },
     }),
   ],

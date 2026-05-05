@@ -68,10 +68,10 @@ export default function DashboardPage() {
 
   const handleReview = async (orderId: number) => {
     try {
-      await postReview(orderId, reviewRating, reviewComment);
+      const review = await postReview(orderId, reviewRating, reviewComment);
       setReviewingOrder(null);
       setReviewComment('');
-      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, review: { id: 0, order_id: orderId, rating: reviewRating, comment: reviewComment } } : o));
+      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, review } : o));
     } catch (err: any) {
       alert(err.message || 'Failed to submit review');
     }

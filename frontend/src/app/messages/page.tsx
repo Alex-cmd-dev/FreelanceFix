@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { getMessages, sendMessage } from '../../lib/api';
+import { getMessages } from '../../lib/api';
 import type { Message } from '../../lib/types';
 
 // Retain dummy for visual fallback when API throws since backend is down
@@ -29,15 +29,8 @@ export default function Messages() {
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
-
-    try {
-      const targetUserId = '123e4567-e89b-12d3-a456-426614174000'; // Default test UUID
-      await sendMessage(targetUserId, inputText);
-      // In a real app we'd append to state or refetch here
-      setInputText('');
-    } catch (err) {
-      alert('Network error: Could not deliver message to the backend servers.');
-    }
+    // Messaging UI is a demo — real sends require a selected conversation
+    setInputText('');
   };
 
   return (

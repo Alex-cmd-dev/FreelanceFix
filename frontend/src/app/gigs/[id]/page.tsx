@@ -162,7 +162,9 @@ export default function GigDetailPage({ params }: { params: { id: string } }) {
             </div>
             <div>
               <Link href={`/freelancers/${gig.freelancer_id}`} className="font-semibold text-gray-900 hover:text-primary">
-                {gig.freelancer.user?.first_name} {gig.freelancer.user?.last_name}
+                {gig.freelancer.user
+                  ? `${gig.freelancer.user.first_name} ${gig.freelancer.user.last_name}`
+                  : 'Freelancer'}
               </Link>
               {gig.freelancer.hourly_rate && (
                 <p className="text-sm text-gray-500">${gig.freelancer.hourly_rate}/hr</p>
