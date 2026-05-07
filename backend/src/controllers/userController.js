@@ -115,4 +115,21 @@ async function searchFreelancers(req, res) {
   }
 }
 
-module.exports = { getProfile, updateProfile, searchFreelancers };
+// GET /freelancers/:id
+async function getFreelancerById(req, res) {
+  try {
+    const freelancer = await prisma.freelancer.findUnique({
+      where: { id: req.params.id },
+      include: {
+        user: { select: { id: true, first_name: true, last_name: true, email: true } },
+      },
+    });
+    if (!freelancer) return res.status(404).json({ error: 'Freelancer not found' });
+    res.json(freelancer);
+  } catch (err) {
+    console.error('getFreelancerById error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+module.exports = { getProfile, updateProfile, searchFreelancers, getFreelancerById };

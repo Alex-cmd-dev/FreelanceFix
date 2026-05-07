@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getGigs, searchFreelancers } from '../../../lib/api';
+import { getFreelancerById, getGigs } from '../../../lib/api';
 import type { GigWithRelations, FreelancerWithUser } from '../../../lib/types';
 
 export default function FreelancerProfilePage({ params }: { params: { id: string } }) {
@@ -14,18 +14,12 @@ export default function FreelancerProfilePage({ params }: { params: { id: string
 
   useEffect(() => {
     Promise.all([
-      // searchFreelancers has no by-id endpoint, so we fetch all and filter
-      searchFreelancers(),
-      getGigs(),
+      getFreelancerById(freelancerId),
+      getGigs({ freelancer_id: freelancerId }),
     ])
-      .then(([freelancers, allGigs]) => {
-        const found = freelancers.find((f) => f.id === freelancerId);
-        if (!found) {
-          setError('Freelancer not found.');
-          return;
-        }
+      .then(([found, freelancerGigs]) => {
         setFreelancer(found);
-        setGigs(allGigs.filter((g) => g.freelancer_id === freelancerId));
+        setGigs(freelancerGigs);
       })
       .catch(() => setError('Failed to load profile. Is the backend running?'))
       .finally(() => setIsLoading(false));

@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { searchFreelancers } = require('../controllers/userController');
+const { searchFreelancers, getFreelancerById } = require('../controllers/userController');
 
-// Public freelancer search/browse
 router.get('/', searchFreelancers);
+router.get('/:id', getFreelancerById);
 
 module.exports = router;

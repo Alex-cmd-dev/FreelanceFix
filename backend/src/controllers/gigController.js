@@ -4,10 +4,12 @@ const prisma = new PrismaClient();
 // GET /gigs?category_id=&subcategory_id=
 async function browseGigs(req, res) {
   try {
-    const { category_id, subcategory_id } = req.query;
+    const { category_id, subcategory_id, freelancer_id } = req.query;
 
     const where = {};
-    if (subcategory_id) {
+    if (freelancer_id) {
+      where.freelancer_id = freelancer_id;
+    } else if (subcategory_id) {
       where.subcategory_id = parseInt(subcategory_id);
     } else if (category_id) {
       where.subcategory = { category_id: parseInt(category_id) };

@@ -56,6 +56,9 @@ export const searchFreelancers = (params?: { query?: string; max_hourly_rate?: n
   return fetchAPI<FreelancerWithUser[]>(`/freelancers${query}`);
 };
 
+export const getFreelancerById = (id: string) =>
+  fetchAPI<FreelancerWithUser>(`/freelancers/${id}`);
+
 // ---------------------------------------------------------
 // Categories
 // API returns Category[] with nested subcategories — NOT { categories, subcategories }
@@ -67,7 +70,7 @@ export const getCategories = () =>
 // Gigs & Packages
 // GET /gigs/:id returns a single gig object with packages nested inside
 // ---------------------------------------------------------
-export const getGigs = (params?: { category_id?: number; subcategory_id?: number }) => {
+export const getGigs = (params?: { category_id?: number; subcategory_id?: number; freelancer_id?: string }) => {
   const query = params ? `?${new URLSearchParams(params as any).toString()}` : '';
   return fetchAPI<GigWithRelations[]>(`/gigs${query}`);
 };

@@ -1,107 +1,197 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { getMessages } from '../../lib/api';
-import type { Message } from '../../lib/types';
+import { useState, useEffect, useRef } from 'react';
+import { useSession } from 'next-auth/react';
+import { getMessages, sendMessage } from '../../lib/api';
+import type { MessageWithUsers } from '../../lib/types';
 
-// Retain dummy for visual fallback when API throws since backend is down
-const DUMMY_CONVERSATIONS = [
-  { id: 1, name: 'Alice Smith', lastMessage: 'Can you send the draft?', active: true },
-  { id: 2, name: 'Bob Johnson', lastMessage: 'Thanks for the update!', active: false },
-];
+interface Conversation {
+  partnerId: string;
+  partnerName: string;
+  messages: MessageWithUsers[];
+  lastMessage: MessageWithUsers;
+}
 
-export default function Messages() {
+function groupIntoConversations(messages: MessageWithUsers[], currentUserId: string): Conversation[] {
+  const byPartner = new Map<string, MessageWithUsers[]>();
+
+  for (const msg of messages) {
+    const partnerId = msg.sender_id === currentUserId ? msg.receiver_id : msg.sender_id;
+    const list = byPartner.get(partnerId) ?? [];
+    list.push(msg);
+    byPartner.set(partnerId, list);
+  }
+
+  const conversations: Conversation[] = Array.from(byPartner.entries()).map(([partnerId, msgs]) => {
+    const sorted = [...msgs].sort(
+      (a, b) => new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime(),
+    );
+    const last = sorted[sorted.length - 1];
+    const partnerObj = last.sender_id === currentUserId ? last.receiver : last.sender;
+    const partnerName = partnerObj
+      ? `${partnerObj.first_name} ${partnerObj.last_name}`
+      : `User ${partnerId.slice(0, 6)}`;
+    return { partnerId, partnerName, messages: sorted, lastMessage: last };
+  });
+
+  return conversations.sort(
+    (a, b) =>
+      new Date(b.lastMessage.created_at ?? 0).getTime() -
+      new Date(a.lastMessage.created_at ?? 0).getTime(),
+  );
+}
+
+export default function MessagesPage() {
+  const { data: session } = useSession();
+  const currentUserId = (session?.user as any)?.id as string | undefined;
+
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activePartnerId, setActivePartnerId] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState('');
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Fetch initial chat data
+    if (!currentUserId) return;
     getMessages()
-      .then((data) => setMessages(data))
-      .catch((err) => {
-        console.warn('Backend unavailable, using dummy context', err);
-        setError('Connected to local cache. Real-time sync paused while server is down.');
+      .then((msgs) => {
+        const convs = groupIntoConversations(msgs as MessageWithUsers[], currentUserId);
+        setConversations(convs);
+        setActivePartnerId((prev) => prev ?? (convs.length > 0 ? convs[0].partnerId : null));
       })
+      .catch(() => setError('Failed to load messages. Is the backend running?'))
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [currentUserId]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [activePartnerId, conversations]);
+
+  const activeConv = conversations.find((c) => c.partnerId === activePartnerId) ?? null;
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim()) return;
-    // Messaging UI is a demo — real sends require a selected conversation
-    setInputText('');
+    if (!inputText.trim() || !activePartnerId || !currentUserId) return;
+    setIsSending(true);
+    try {
+      const sent = await sendMessage(activePartnerId, inputText.trim()) as MessageWithUsers;
+      setInputText('');
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.partnerId === activePartnerId
+            ? { ...c, messages: [...c.messages, sent], lastMessage: sent }
+            : c,
+        ),
+      );
+    } catch {
+      alert('Failed to send message.');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
-    <div className="h-[calc(100vh-64px)] bg-gray-50 flex relative">
-       {/* Error Banner overlaying specific to missing backend */}
-       {error && (
-         <div className="absolute top-0 w-full z-50 bg-yellow-100 border-b border-yellow-200 px-4 py-2 text-yellow-800 text-sm flex justify-center shadow-sm">
-            {error}
-         </div>
-       )}
+    <div className="h-[calc(100vh-64px)] bg-gray-50 flex">
+      {/* Sidebar */}
+      <div className="w-1/3 max-w-sm border-r border-gray-200 bg-white shadow-sm flex flex-col">
+        <div className="p-4 border-b border-gray-200">
+          <h2 className="text-xl font-bold text-gray-900">Inbox</h2>
+        </div>
 
-       {/* Sidebar */}
-       <div className="w-1/3 max-w-sm border-r border-gray-200 bg-white shadow-sm flex flex-col z-10 pt-8">
-          <div className="p-4 border-b border-gray-200 bg-white">
-             <h2 className="text-xl font-bold text-gray-900">Inbox</h2>
-          </div>
-          <div className="overflow-y-auto flex-1 h-full">
-             {DUMMY_CONVERSATIONS.map(conv => (
-               <div key={conv.id} className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${conv.active ? 'bg-primary/5 border-l-4 border-l-primary' : 'border-l-4 border-l-transparent'}`}>
-                  <h3 className="font-semibold text-gray-900">{conv.name}</h3>
-                  <p className="text-sm text-gray-500 truncate mt-1">{conv.lastMessage}</p>
-               </div>
-             ))}
-          </div>
-       </div>
+        <div className="overflow-y-auto flex-1">
+          {isLoading ? (
+            <div className="p-4 space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-1/2 mb-1" />
+                  <div className="h-3 bg-gray-100 rounded w-3/4" />
+                </div>
+              ))}
+            </div>
+          ) : error ? (
+            <p className="p-4 text-sm text-red-500">{error}</p>
+          ) : conversations.length === 0 ? (
+            <p className="p-4 text-sm text-gray-400">No messages yet.</p>
+          ) : (
+            conversations.map((conv) => (
+              <button
+                key={conv.partnerId}
+                onClick={() => setActivePartnerId(conv.partnerId)}
+                className={`w-full text-left p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors border-l-4 ${
+                  conv.partnerId === activePartnerId
+                    ? 'bg-primary/5 border-l-primary'
+                    : 'border-l-transparent'
+                }`}
+              >
+                <p className="font-semibold text-gray-900 text-sm">{conv.partnerName}</p>
+                <p className="text-xs text-gray-500 truncate mt-0.5">{conv.lastMessage.content}</p>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
 
-       {/* Main Chat Area */}
-       <div className="flex-1 flex flex-col bg-white pt-8">
-          <div className="p-4 border-b border-gray-200 flex items-center justify-between shadow-sm bg-white z-10">
-             <h3 className="text-lg font-bold text-gray-900">Alice Smith</h3>
-             <span className="text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full uppercase tracking-wider border border-primary/20">Client</span>
-          </div>
-          
-          <div className="flex-1 p-6 overflow-y-auto space-y-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-gray-50/50">
-             {isLoading ? (
-                <div className="flex justify-center text-gray-400">Loading messages...</div>
-             ) : (
-                <>
-                   {/* Dynamic block for fallback/loaded UI logic */}
-                   <div className="flex justify-start">
-                     <div className="bg-white border border-gray-200 shadow-sm rounded-2xl rounded-tl-none px-5 py-3 max-w-md">
-                       <p className="text-gray-800">Hi, I saw your gig for specialized graphic design. Are you available to start this week?</p>
-                       <span className="text-xs text-gray-400 mt-2 block">10:41 AM</span>
-                     </div>
-                   </div>
-                   <div className="flex justify-end">
-                     <div className="bg-primary text-white shadow-sm rounded-2xl rounded-tr-none px-5 py-3 max-w-md">
-                       <p>Hello! Yes, I can start on Wednesday. Do you have a project brief ready, or should we discuss a custom package?</p>
-                       <span className="text-xs text-indigo-200 mt-2 block text-right">10:43 AM</span>
-                     </div>
-                   </div>
-                </>
-             )}
-          </div>
-          
-          {/* Input Area */}
-          <div className="p-4 bg-white border-t border-gray-200 shadow-inner">
-             <form className="flex space-x-4 max-w-4xl mx-auto" onSubmit={handleSend}>
-                <input 
-                  type="text" 
+      {/* Chat area */}
+      <div className="flex-1 flex flex-col bg-white">
+        {activeConv ? (
+          <>
+            <div className="p-4 border-b border-gray-200 shadow-sm">
+              <h3 className="text-lg font-bold text-gray-900">{activeConv.partnerName}</h3>
+            </div>
+
+            <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-gray-50">
+              {activeConv.messages.map((msg) => {
+                const isMine = msg.sender_id === currentUserId;
+                return (
+                  <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                    <div
+                      className={`px-5 py-3 rounded-2xl max-w-md shadow-sm ${
+                        isMine
+                          ? 'bg-primary text-white rounded-tr-none'
+                          : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none'
+                      }`}
+                    >
+                      <p className="text-sm">{msg.content}</p>
+                      {msg.created_at && (
+                        <span
+                          className={`text-xs mt-1 block ${isMine ? 'text-indigo-200 text-right' : 'text-gray-400'}`}
+                        >
+                          {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={bottomRef} />
+            </div>
+
+            <div className="p-4 bg-white border-t border-gray-200">
+              <form className="flex space-x-3 max-w-4xl mx-auto" onSubmit={handleSend}>
+                <input
+                  type="text"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Type your message..." 
-                  className="flex-1 appearance-none border border-gray-300 rounded-full px-6 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                  placeholder="Type your message..."
+                  className="flex-1 border border-gray-300 rounded-full px-6 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
                 />
-                <button type="submit" disabled={!inputText} className="bg-primary text-white rounded-full px-8 py-3 font-semibold shadow-sm hover:bg-primary-dark transition-colors focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50">
-                   Send
+                <button
+                  type="submit"
+                  disabled={!inputText.trim() || isSending}
+                  className="bg-primary text-white rounded-full px-8 py-3 font-semibold text-sm hover:bg-primary-dark transition-colors disabled:opacity-50"
+                >
+                  {isSending ? 'Sending…' : 'Send'}
                 </button>
-             </form>
+              </form>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+            {isLoading ? 'Loading…' : 'Select a conversation'}
           </div>
-       </div>
+        )}
+      </div>
     </div>
   );
 }
