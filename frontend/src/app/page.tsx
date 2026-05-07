@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { getGigs } from '../lib/api';
 import type { Gig } from '../lib/types';
 
@@ -10,8 +12,11 @@ const MOCK_GIGS: Gig[] = [
 ];
 
 export default function Home() {
+  const { data: session } = useSession();
+  const router = useRouter();
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     getGigs()
@@ -42,19 +47,28 @@ export default function Home() {
             <p className="mt-3 text-base text-gray-500 sm:mt-5 sm:text-lg sm:max-w-xl sm:mx-auto md:mt-5 md:text-xl lg:mx-0">
               The specialized digital marketplace connecting Rio Grande Valley freelancers with small business owners. Choose from transparent 3-tier gig pricing or post custom project briefs.
             </p>
-            <div className="mt-8 sm:max-w-lg sm:mx-auto sm:text-center lg:text-left lg:mx-0 flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+            <form
+              className="mt-8 sm:max-w-lg sm:mx-auto sm:text-center lg:text-left lg:mx-0 flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4"
+              onSubmit={(e) => { e.preventDefault(); router.push(`/gigs${searchQuery.trim() ? `?q=${encodeURIComponent(searchQuery.trim())}` : ''}`); }}
+            >
               <div className="flex-1 max-w-sm rounded-md shadow-sm relative">
-                 <input type="text" placeholder="Search freelancers or gigs..." className="w-full pl-4 pr-10 py-3 md:py-4 border border-gray-300 rounded-md focus:ring-primary focus:border-primary text-base" />
-                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                 <input
+                   type="text"
+                   placeholder="Search freelancers or gigs..."
+                   value={searchQuery}
+                   onChange={(e) => setSearchQuery(e.target.value)}
+                   className="w-full pl-4 pr-10 py-3 md:py-4 border border-gray-300 rounded-md focus:ring-primary focus:border-primary text-base"
+                 />
+                 <button type="submit" className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    <svg className="h-5 w-5 text-gray-400 hover:text-gray-600" viewBox="0 0 20 20" fill="currentColor">
                        <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
                     </svg>
-                 </div>
+                 </button>
               </div>
-              <Link href="/register" className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary hover:bg-primary-dark shadow-sm transition-colors md:py-4 md:text-lg md:px-10">
+              <Link href={session ? '/briefs' : '/register'} className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary hover:bg-primary-dark shadow-sm transition-colors md:py-4 md:text-lg md:px-10">
                 Post a Project
               </Link>
-            </div>
+            </form>
           </div>
           <div className="mt-12 relative sm:max-w-lg sm:mx-auto lg:mt-0 lg:max-w-none lg:mx-0 lg:col-span-6 flex lg:items-center justify-center">
             <div className="relative mx-auto w-full rounded-lg shadow-xl lg:max-w-md bg-white border border-gray-100 p-8">

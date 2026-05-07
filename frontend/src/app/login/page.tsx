@@ -22,6 +22,7 @@ export default function Login() {
         setError('Invalid email or password. Please try again.');
         return;
       }
+      router.refresh();
       router.push('/dashboard');
     } catch {
       setError('Something went wrong. Please try again.');

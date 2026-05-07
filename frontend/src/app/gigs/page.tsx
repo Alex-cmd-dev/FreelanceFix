@@ -1,14 +1,19 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { getGigs, getCategories } from '../../lib/api';
 import type { GigWithRelations, CategoryWithSubs } from '../../lib/types';
 
-export default function GigsPage() {
+function GigsContent() {
+  const searchParams = useSearchParams();
+  const initialQ = searchParams.get('q') ?? '';
+
   const [gigs, setGigs] = useState<GigWithRelations[]>([]);
   const [categories, setCategories] = useState<CategoryWithSubs[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [selectedSubcategory, setSelectedSubcategory] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState(initialQ);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -35,11 +40,39 @@ export default function GigsPage() {
     ? categories.find((c) => c.id === selectedCategory)?.subcategories ?? []
     : [];
 
+  const q = searchQuery.trim().toLowerCase();
+  const visibleGigs = q
+    ? gigs.filter(
+        (g) =>
+          g.title.toLowerCase().includes(q) ||
+          g.description.toLowerCase().includes(q) ||
+          g.freelancer?.user?.first_name?.toLowerCase().includes(q) ||
+          g.freelancer?.user?.last_name?.toLowerCase().includes(q),
+      )
+    : gigs;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold text-gray-900">Explore Gigs</h1>
         <p className="mt-1 text-gray-500">Find local talent across the Rio Grande Valley</p>
+        <div className="mt-4 relative max-w-sm">
+          <input
+            type="text"
+            placeholder="Search gigs…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-md text-sm focus:ring-primary focus:border-primary"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="lg:grid lg:grid-cols-4 lg:gap-8">
@@ -98,14 +131,16 @@ export default function GigsPage() {
                 </div>
               ))}
             </div>
-          ) : gigs.length === 0 ? (
+          ) : visibleGigs.length === 0 ? (
             <div className="text-center py-20 text-gray-400">
               <p className="text-lg font-medium">No gigs found</p>
-              <p className="text-sm mt-1">Try a different category or check back later</p>
+              <p className="text-sm mt-1">
+                {searchQuery ? 'Try a different search term' : 'Try a different category or check back later'}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-              {gigs.map((gig) => (
+              {visibleGigs.map((gig) => (
                 <Link
                   key={gig.id}
                   href={`/gigs/${gig.id}`}
@@ -138,5 +173,13 @@ export default function GigsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function GigsPage() {
+  return (
+    <Suspense>
+      <GigsContent />
+    </Suspense>
   );
 }

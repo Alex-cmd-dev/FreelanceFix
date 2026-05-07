@@ -38,6 +38,20 @@ export default function CreateGigPage() {
     getCategories().then(setCategories).catch(() => {});
   }, []);
 
+  if (status === 'loading') {
+    return (
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10 animate-pulse">
+        <div className="h-6 bg-gray-200 rounded w-1/3 mb-8" />
+        <div className="bg-white border border-gray-100 rounded-lg p-6 shadow-sm space-y-5">
+          <div className="h-5 bg-gray-200 rounded w-1/4" />
+          <div className="h-10 bg-gray-100 rounded" />
+          <div className="h-24 bg-gray-100 rounded" />
+          <div className="h-10 bg-gray-100 rounded" />
+        </div>
+      </div>
+    );
+  }
+
   if (status === 'unauthenticated') {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center text-gray-500">
